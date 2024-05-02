@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "bins/bcevme",
+    "bins/bcevm-test",
+    "crates/bcevm",
+    "crates/primitives",
+    "crates/interpreter",
+    "crates/precompile",
+]
+resolver = "2"
+default-members = ["crates/bcevm"]
+
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+debug = true
+
+[profile.ethtests]
+inherits = "test"
+opt-level = 3

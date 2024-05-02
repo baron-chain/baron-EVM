@@ -1,0 +1,75 @@
+[package]
+authors = ["BC"]
+description = "bcevm Interpreter"
+edition = "2021"
+keywords = ["no_std", "ethereum", "evm", "bcevm", "interpreter"]
+license = "MIT"
+name = "bcevm-interpreter"
+repository = "https://github.com/baron-chain/bcevm"
+version = "4.0.0"
+readme = "../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+bcevm-primitives = { path = "../primitives", version = "3.1.1", default-features = false }
+
+paste = { version = "1.0", optional = true }
+phf = { version = "0.11", default-features = false, optional = true, features = [
+    "macros",
+] }
+
+# optional
+serde = { version = "1.0", default-features = false, features = [
+    "derive",
+    "rc",
+], optional = true }
+
+[dev-dependencies]
+walkdir = "2.5"
+serde_json = "1.0"
+bincode = "1.3"
+
+[[test]]
+name = "eof"
+path = "tests/eof.rs"
+required-features = ["serde"]
+
+[features]
+default = ["std", "parse"]
+std = ["serde?/std", "bcevm-primitives/std"]
+hashbrown = ["bcevm-primitives/hashbrown"]
+serde = ["dep:serde", "bcevm-primitives/serde"]
+arbitrary = ["std", "bcevm-primitives/arbitrary"]
+asm-keccak = ["bcevm-primitives/asm-keccak"]
+portable = ["bcevm-primitives/portable"]
+parse = ["dep:paste", "dep:phf"]
+
+optimism = ["bcevm-primitives/optimism"]
+# Optimism default handler enabled Optimism handler register by default in EvmBuilder.
+optimism-default-handler = [
+    "optimism",
+    "bcevm-primitives/optimism-default-handler",
+]
+negate-optimism-default-handler = [
+    "bcevm-primitives/negate-optimism-default-handler",
+]
+
+dev = [
+    "memory_limit",
+    "optional_balance_check",
+    "optional_block_gas_limit",
+    "optional_eip3607",
+    "optional_gas_refund",
+    "optional_no_base_fee",
+    "optional_beneficiary_reward",
+]
+memory_limit = ["bcevm-primitives/memory_limit"]
+optional_balance_check = ["bcevm-primitives/optional_balance_check"]
+optional_block_gas_limit = ["bcevm-primitives/optional_block_gas_limit"]
+optional_eip3607 = ["bcevm-primitives/optional_eip3607"]
+optional_gas_refund = ["bcevm-primitives/optional_gas_refund"]
+optional_no_base_fee = ["bcevm-primitives/optional_no_base_fee"]
+optional_beneficiary_reward = ["bcevm-primitives/optional_beneficiary_reward"]
