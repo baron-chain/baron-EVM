@@ -30,7 +30,6 @@ fn run_transaction<EXT, DB: DatabaseRefDebugError>(
         .with_external_context(ext)
         .append_handler_register(register_handles_fn)
         .build();
-
     let result = evm.transact()?;
     Ok((result, evm.into_context().evm.inner.db.0))
 }
@@ -40,42 +39,29 @@ fn run_transaction_and_commit_with_ext<EXT, DB: DatabaseRefDebugError + Database
     ext: EXT,
     register_handles_fn: HandleRegister<EXT, WrapDatabaseRef<DB>>,
 ) -> anyhow::Result<()> {
-    // To circumvent borrow checker issues, we need to move the database into the
-    // transaction and return it after the transaction is done.
-    let (ResultAndState { state: changes, .. }, mut db) =
-        { run_transaction(db, ext, register_handles_fn)? };
-
+    let (ResultAndState { state: changes, .. }, mut db) = run_transaction(db, ext, register_handles_fn)?;
     db.commit(changes);
-
     Ok(())
 }
 
 fn run_transaction_and_commit(db: &mut CacheDB<EmptyDB>) -> anyhow::Result<()> {
     let ResultAndState { state: changes, .. } = {
         let rdb = &*db;
-
-        let mut evm = Evm::builder()
+        Evm::builder()
             .with_ref_db(rdb)
             .with_external_context(NoOpInspector)
             .append_handler_register(inspector_handle_register)
-            .build();
-
-        evm.transact()?
+            .build()
+            .transact()?
     };
-
-    // No compiler error because there is no lifetime parameter for the `HandleRegister` function
     db.commit(changes);
-
     Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
     let mut cache_db = CacheDB::new(EmptyDB::default());
-
     let mut tracer = TracerEip3155::new(Box::new(std::io::stdout()));
-
     run_transaction_and_commit_with_ext(&mut cache_db, &mut tracer, inspector_handle_register)?;
     run_transaction_and_commit(&mut cache_db)?;
-
     Ok(())
 }
