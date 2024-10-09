@@ -1,12 +1,16 @@
 #!/bin/bash
-
-# stop on error
 set -e
 
-cargo publish --package bcevm-primitives
-cargo publish --package bcevm-precompile
-cargo publish --package bcevm-interpreter
-cargo publish --package bcevm
-cargo publish --package bcevme
+packages=(
+    "bcevm-primitives"
+    "bcevm-precompile"
+    "bcevm-interpreter"
+    "bcevm"
+    "bcevme"
+)
 
-echo "All crates published"
+for package in "${packages[@]}"; do
+    cargo publish --package "$package"
+done
+
+echo "All crates published successfully"
