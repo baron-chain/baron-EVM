@@ -1,1 +1,1 @@
-Baron Chain 0 EVM
+Baron Chain 0 EVM - PQC
