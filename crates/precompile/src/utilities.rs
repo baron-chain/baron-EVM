@@ -1,25 +1,16 @@
 use bcevm_primitives::{b256, Bytes, B256};
 use std::borrow::Cow;
 
-/// Right-pads the given slice at `offset` with zeroes until `LEN`.
-///
-/// Returns the first `LEN` bytes if it does not need padding.
 #[inline]
 pub fn right_pad_with_offset<const LEN: usize>(data: &[u8], offset: usize) -> Cow<'_, [u8; LEN]> {
     right_pad(data.get(offset..).unwrap_or_default())
 }
 
-/// Right-pads the given slice at `offset` with zeroes until `len`.
-///
-/// Returns the first `len` bytes if it does not need padding.
 #[inline]
 pub fn right_pad_with_offset_vec(data: &[u8], offset: usize, len: usize) -> Cow<'_, [u8]> {
     right_pad_vec(data.get(offset..).unwrap_or_default(), len)
 }
 
-/// Right-pads the given slice with zeroes until `LEN`.
-///
-/// Returns the first `LEN` bytes if it does not need padding.
 #[inline]
 pub fn right_pad<const LEN: usize>(data: &[u8]) -> Cow<'_, [u8; LEN]> {
     if let Some(data) = data.get(..LEN) {
@@ -31,9 +22,6 @@ pub fn right_pad<const LEN: usize>(data: &[u8]) -> Cow<'_, [u8; LEN]> {
     }
 }
 
-/// Right-pads the given slice with zeroes until `len`.
-///
-/// Returns the first `len` bytes if it does not need padding.
 #[inline]
 pub fn right_pad_vec(data: &[u8], len: usize) -> Cow<'_, [u8]> {
     if let Some(data) = data.get(..len) {
@@ -45,9 +33,6 @@ pub fn right_pad_vec(data: &[u8], len: usize) -> Cow<'_, [u8]> {
     }
 }
 
-/// Left-pads the given slice with zeroes until `LEN`.
-///
-/// Returns the first `LEN` bytes if it does not need padding.
 #[inline]
 pub fn left_pad<const LEN: usize>(data: &[u8]) -> Cow<'_, [u8; LEN]> {
     if let Some(data) = data.get(..LEN) {
@@ -59,9 +44,6 @@ pub fn left_pad<const LEN: usize>(data: &[u8]) -> Cow<'_, [u8; LEN]> {
     }
 }
 
-/// Left-pads the given slice with zeroes until `len`.
-///
-/// Returns the first `len` bytes if it does not need padding.
 #[inline]
 pub fn left_pad_vec(data: &[u8], len: usize) -> Cow<'_, [u8]> {
     if let Some(data) = data.get(..len) {
@@ -73,26 +55,16 @@ pub fn left_pad_vec(data: &[u8], len: usize) -> Cow<'_, [u8]> {
     }
 }
 
-/// Converts a boolean to a left-padded 32-byte `Bytes` value.
-///
-/// This is optimized to not allocate at runtime by using 2 static arrays.
 #[inline]
 pub const fn bool_to_bytes32(value: bool) -> Bytes {
     Bytes::from_static(&bool_to_b256(value).0)
 }
 
-/// Converts a boolean to a left-padded `B256` value.
-///
-/// This is optimized to not allocate at runtime by using 2 static arrays.
 #[inline]
 pub const fn bool_to_b256(value: bool) -> &'static B256 {
     const TRUE: &B256 = &b256!("0000000000000000000000000000000000000000000000000000000000000001");
     const FALSE: &B256 = &b256!("0000000000000000000000000000000000000000000000000000000000000000");
-    if value {
-        TRUE
-    } else {
-        FALSE
-    }
+    if value { TRUE } else { FALSE }
 }
 
 #[cfg(test)]
@@ -104,10 +76,10 @@ mod tests {
         let data = [1, 2, 3, 4];
         let padded = right_pad_with_offset::<8>(&data, 4);
         assert!(matches!(padded, Cow::Owned(_)));
-        assert_eq!(padded[..], [0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(padded[..], [0; 8]);
         let padded = right_pad_with_offset_vec(&data, 4, 8);
         assert!(matches!(padded, Cow::Owned(_)));
-        assert_eq!(padded[..], [0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(padded[..], [0; 8]);
 
         let data = [1, 2, 3, 4, 5, 6, 7, 8];
         let padded = right_pad_with_offset::<8>(&data, 0);
