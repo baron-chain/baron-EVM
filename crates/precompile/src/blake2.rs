@@ -4,12 +4,8 @@ use bcevm_primitives::Bytes;
 const F_ROUND: u64 = 1;
 const INPUT_LENGTH: usize = 213;
 
-pub const FUN: PrecompileWithAddress =
-    PrecompileWithAddress(crate::u64_to_address(9), Precompile::Standard(run));
+pub const FUN: PrecompileWithAddress = PrecompileWithAddress(crate::u64_to_address(9), Precompile::Standard(run));
 
-/// reference: <https://eips.ethereum.org/EIPS/eip-152>
-/// input format:
-/// [4 bytes for rounds][64 bytes for h][128 bytes for m][8 bytes for t_0][8 bytes for t_1][1 byte for f]
 pub fn run(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     let input = &input[..];
 
@@ -23,7 +19,6 @@ pub fn run(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         _ => return Err(Error::Blake2WrongFinalIndicatorFlag),
     };
 
-    // rounds 4 bytes
     let rounds = u32::from_be_bytes(input[..4].try_into().unwrap()) as usize;
     let gas_used = rounds as u64 * F_ROUND;
     if gas_used > gas_limit {
@@ -40,8 +35,8 @@ pub fn run(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         m[i] = u64::from_le_bytes(input[pos..pos + 8].try_into().unwrap());
     }
     let t = [
-        u64::from_le_bytes(input[196..196 + 8].try_into().unwrap()),
-        u64::from_le_bytes(input[204..204 + 8].try_into().unwrap()),
+        u64::from_le_bytes(input[196..204].try_into().unwrap()),
+        u64::from_le_bytes(input[204..212].try_into().unwrap()),
     ];
 
     algo::compress(rounds, &mut h, m, t, f);
@@ -54,9 +49,8 @@ pub fn run(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     Ok((gas_used, out.into()))
 }
 
-pub mod algo {
-    /// SIGMA from spec: <https://datatracker.ietf.org/doc/html/rfc7693#section-2.7>
-    pub const SIGMA: [[usize; 16]; 10] = [
+mod algo {
+    const SIGMA: [[usize; 16]; 10] = [
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
         [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
@@ -69,22 +63,13 @@ pub mod algo {
         [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
     ];
 
-    /// got IV from: <https://en.wikipedia.org/wiki/BLAKE_(hash_function)>
-    pub const IV: [u64; 8] = [
-        0x6a09e667f3bcc908,
-        0xbb67ae8584caa73b,
-        0x3c6ef372fe94f82b,
-        0xa54ff53a5f1d36f1,
-        0x510e527fade682d1,
-        0x9b05688c2b3e6c1f,
-        0x1f83d9abfb41bd6b,
-        0x5be0cd19137e2179,
+    const IV: [u64; 8] = [
+        0x6a09e667f3bcc908, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
+        0x510e527fade682d1, 0x9b05688c2b3e6c1f, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
     ];
 
     #[inline]
-    #[allow(clippy::many_single_char_names)]
-    /// G function: <https://tools.ietf.org/html/rfc7693#section-3.1>
-    pub fn g(v: &mut [u64], a: usize, b: usize, c: usize, d: usize, x: u64, y: u64) {
+    fn g(v: &mut [u64], a: usize, b: usize, c: usize, d: usize, x: u64, y: u64) {
         v[a] = v[a].wrapping_add(v[b]).wrapping_add(x);
         v[d] = (v[d] ^ v[a]).rotate_right(32);
         v[c] = v[c].wrapping_add(v[d]);
@@ -95,32 +80,24 @@ pub mod algo {
         v[b] = (v[b] ^ v[c]).rotate_right(63);
     }
 
-    // Compression function F takes as an argument the state vector "h",
-    // message block vector "m" (last block is padded with zeros to full
-    // block size, if required), 2w-bit offset counter "t", and final block
-    // indicator flag "f".  Local vector v[0..15] is used in processing.  F
-    // returns a new state vector.  The number of rounds, "r", is 12 for
-    // BLAKE2b and 10 for BLAKE2s.  Rounds are numbered from 0 to r - 1.
-    #[allow(clippy::many_single_char_names)]
     pub fn compress(rounds: usize, h: &mut [u64; 8], m: [u64; 16], t: [u64; 2], f: bool) {
         let mut v = [0u64; 16];
-        v[..h.len()].copy_from_slice(h); // First half from state.
-        v[h.len()..].copy_from_slice(&IV); // Second half from IV.
+        v[..8].copy_from_slice(h);
+        v[8..].copy_from_slice(&IV);
 
         v[12] ^= t[0];
         v[13] ^= t[1];
 
         if f {
-            v[14] = !v[14] // Invert all bits if the last-block-flag is set.
+            v[14] = !v[14];
         }
+
         for i in 0..rounds {
-            // Message word selection permutation for this round.
             let s = &SIGMA[i % 10];
             g(&mut v, 0, 4, 8, 12, m[s[0]], m[s[1]]);
             g(&mut v, 1, 5, 9, 13, m[s[2]], m[s[3]]);
             g(&mut v, 2, 6, 10, 14, m[s[4]], m[s[5]]);
             g(&mut v, 3, 7, 11, 15, m[s[6]], m[s[7]]);
-
             g(&mut v, 0, 5, 10, 15, m[s[8]], m[s[9]]);
             g(&mut v, 1, 6, 11, 12, m[s[10]], m[s[11]]);
             g(&mut v, 2, 7, 8, 13, m[s[12]], m[s[13]]);
