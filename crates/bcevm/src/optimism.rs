@@ -1,5 +1,3 @@
-//! Optimism-specific constants, types, and helpers.
-
 mod handler_register;
 mod l1block;
 
