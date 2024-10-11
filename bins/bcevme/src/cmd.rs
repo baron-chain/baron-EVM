@@ -11,15 +11,11 @@ use structopt::{clap::AppSettings, StructOpt};
 pub enum MainCmd {
     #[structopt(about = "Launch Ethereum state tests")]
     Statetest(statetest::Cmd),
-    #[structopt(
-        about = "Format kzg settings from a trusted setup file (.txt) into binary format (.bin)"
-    )]
+    #[structopt(about = "Format kzg settings from a trusted setup file (.txt) into binary format (.bin)")]
     FormatKzgSetup(format_kzg_setup::Cmd),
-    #[structopt(
-        about = "Evm runner command allows running arbitrary evm bytecode.\nBytecode can be provided from cli or from file with --path option."
-    )]
+    #[structopt(about = "Run arbitrary evm bytecode from cli or file")]
     Evm(evmrunner::Cmd),
-    #[structopt(alias = "bc", about = "Prints the opcodes of an hex Bytecodes.")]
+    #[structopt(alias = "bc", about = "Print opcodes of hex Bytecodes")]
     Bytecode(bytecode::Cmd),
 }
 
@@ -36,13 +32,8 @@ pub enum Error {
 impl MainCmd {
     pub fn run(&self) -> Result<(), Error> {
         match self {
-            Self::Statetest(cmd) => cmd.run().map_err(Into::into),
-            Self::FormatKzgSetup(cmd) => cmd.run().map_err(Into::into),
-            Self::Evm(cmd) => cmd.run().map_err(Into::into),
-            Self::Bytecode(cmd) => {
-                cmd.run();
-                Ok(())
-            }
+            Self::Statetest(cmd) | Self::FormatKzgSetup(cmd) | Self::Evm(cmd) => cmd.run().map_err(Into::into),
+            Self::Bytecode(cmd) => { cmd.run(); Ok(()) }
         }
     }
 }
