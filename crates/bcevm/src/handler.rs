@@ -17,9 +17,6 @@ use std::vec::Vec;
 
 use self::register::{HandleRegister, HandleRegisterBox};
 
-/// Handler acts as a proxy and allow to define different behavior for different
-/// sections of the code. This allows nice integration of different chains or
-/// to disable some mainnet behavior.
 pub struct Handler<'a, H: Host + 'a, EXT, DB: Database> {
     /// Handler configuration.
     pub cfg: HandlerCfg,
@@ -38,10 +35,6 @@ pub struct Handler<'a, H: Host + 'a, EXT, DB: Database> {
 }
 
 impl<'a, EXT, DB: Database> EvmHandler<'a, EXT, DB> {
-    /// Created new Handler with given configuration.
-    ///
-    /// Internally it calls `mainnet_with_spec` with the given spec id.
-    /// Or `optimism_with_spec` if the optimism feature is enabled and `cfg.is_optimism` is set.
     pub fn new(cfg: HandlerCfg) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(feature = "optimism")] {
