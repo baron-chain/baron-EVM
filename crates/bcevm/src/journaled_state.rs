@@ -8,8 +8,6 @@ use bcevm_interpreter::primitives::SpecId;
 use bcevm_interpreter::{LoadAccountResult, SStoreResult};
 use std::vec::Vec;
 
-/// JournalState is internal EVM state that is used to contain state and track changes to that state.
-/// It contains journal of changes that happened to state so that they can be reverted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct JournaledState {
