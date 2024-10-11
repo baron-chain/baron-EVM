@@ -1,27 +1,18 @@
 use alloy_rlp::{RlpEncodable, RlpMaxEncodedLen};
 use hash_db::Hasher;
 use plain_hasher::PlainHasher;
-use bcevm::{
-    db::PlainAccount,
-    primitives::{keccak256, Address, Log, B256, U256},
-};
+use bcevm::{db::PlainAccount, primitives::{keccak256, Address, Log, B256, U256}};
 use triehash::sec_trie_root;
 
 pub fn log_rlp_hash(logs: &[Log]) -> B256 {
-    let mut out = Vec::with_capacity(alloy_rlp::list_length(logs));
-    alloy_rlp::encode_list(logs, &mut out);
-    keccak256(&out)
+    keccak256(&alloy_rlp::encode_list_to_vec(logs))
 }
 
-pub fn state_merkle_trie_root<'a>(
-    accounts: impl IntoIterator<Item = (Address, &'a PlainAccount)>,
-) -> B256 {
-    trie_root(accounts.into_iter().map(|(address, acc)| {
-        (
-            address,
-            alloy_rlp::encode_fixed_size(&TrieAccount::new(acc)),
-        )
-    }))
+pub fn state_merkle_trie_root<'a>(accounts: impl IntoIterator<Item = (Address, &'a PlainAccount)>) -> B256 {
+    trie_root(accounts.into_iter().map(|(address, acc)| (
+        address,
+        alloy_rlp::encode_fixed_size(&TrieAccount::new(acc))
+    )))
 }
 
 #[derive(RlpEncodable, RlpMaxEncodedLen)]
@@ -38,10 +29,9 @@ impl TrieAccount {
             nonce: acc.info.nonce,
             balance: acc.info.balance,
             root_hash: sec_trie_root::<KeccakHasher, _, _, _>(
-                acc.storage
-                    .iter()
+                acc.storage.iter()
                     .filter(|(_k, &v)| v != U256::ZERO)
-                    .map(|(k, v)| (k.to_be_bytes::<32>(), alloy_rlp::encode_fixed_size(v))),
+                    .map(|(k, v)| (k.to_be_bytes::<32>(), alloy_rlp::encode_fixed_size(v)))
             ),
             code_hash: acc.info.code_hash,
         }
