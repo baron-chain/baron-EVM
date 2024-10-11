@@ -1,9 +1,8 @@
 use bcevme::cmd::MainCmd;
 use structopt::StructOpt;
 
-pub fn main() {
-    let cmd = MainCmd::from_args();
-    if let Err(e) = cmd.run() {
-        println!("{}", e)
+fn main() {
+    if let Err(e) = MainCmd::from_args().run() {
+        eprintln!("{}", e);
     }
 }
