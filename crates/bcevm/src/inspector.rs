@@ -41,14 +41,6 @@ pub trait Inspector<DB: Database> {
         let _ = context;
     }
 
-    /// Called on each step of the interpreter.
-    ///
-    /// Information about the current execution, including the memory, stack and more is available
-    /// on `interp` (see [Interpreter]).
-    ///
-    /// # Example
-    ///
-    /// To get the current opcode, use `interp.current_opcode()`.
     #[inline]
     fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         let _ = interp;
