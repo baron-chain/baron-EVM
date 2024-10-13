@@ -1,6 +1,3 @@
-//! # bcevm-primitives
-//!
-//! EVM primitive types.
 #![warn(rustdoc::all)]
 #![warn(unreachable_pub, unused_crate_dependencies)]
 #![deny(unused_must_use, rust_2018_idioms)]
@@ -13,7 +10,6 @@ mod bytecode;
 mod constants;
 pub mod db;
 pub mod env;
-
 #[cfg(feature = "c-kzg")]
 pub mod kzg;
 pub mod precompile;
@@ -21,6 +17,7 @@ pub mod result;
 pub mod specification;
 pub mod state;
 pub mod utilities;
+
 pub use alloy_primitives::{
     self, address, b256, bytes, fixed_bytes, hex, hex_literal, ruint, uint, Address, Bytes,
     FixedBytes, Log, LogData, B256, I256, U256,
