@@ -18,51 +18,46 @@ use std::boxed::Box;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum InterpreterAction {
-    /// CALL, CALLCODE, DELEGATECALL, STATICCALL
-    /// or EOF EXT instuction called.
     Call { inputs: Box<CallInputs> },
-    /// CREATE or CREATE2 instruction called.
     Create { inputs: Box<CreateInputs> },
-    /// EOF CREATE instruction called.
     EOFCreate { inputs: Box<EOFCreateInput> },
-    /// Interpreter finished execution.
     Return { result: InterpreterResult },
-    /// No action
     #[default]
     None,
 }
 
 impl InterpreterAction {
-    /// Returns true if action is call.
+    #[inline]
     pub fn is_call(&self) -> bool {
-        matches!(self, InterpreterAction::Call { .. })
+        matches!(self, Self::Call { .. })
     }
 
-    /// Returns true if action is create.
+    #[inline]
     pub fn is_create(&self) -> bool {
-        matches!(self, InterpreterAction::Create { .. })
+        matches!(self, Self::Create { .. })
     }
 
-    /// Returns true if action is return.
+    #[inline]
     pub fn is_return(&self) -> bool {
-        matches!(self, InterpreterAction::Return { .. })
+        matches!(self, Self::Return { .. })
     }
 
-    /// Returns true if action is none.
+    #[inline]
     pub fn is_none(&self) -> bool {
-        matches!(self, InterpreterAction::None)
+        matches!(self, Self::None)
     }
 
-    /// Returns true if action is some.
+    #[inline]
     pub fn is_some(&self) -> bool {
         !self.is_none()
     }
 
-    /// Returns result if action is return.
+    #[inline]
     pub fn into_result_return(self) -> Option<InterpreterResult> {
-        match self {
-            InterpreterAction::Return { result } => Some(result),
-            _ => None,
+        if let Self::Return { result } = self {
+            Some(result)
+        } else {
+            None
         }
     }
 }
