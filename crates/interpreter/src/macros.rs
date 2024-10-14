@@ -14,7 +14,6 @@ macro_rules! assume {
             debug_unreachable!(stringify!($e));
         }
     };
-
     ($e:expr, $($t:tt)+) => {
         if !$e {
             debug_unreachable!($($t)+);
