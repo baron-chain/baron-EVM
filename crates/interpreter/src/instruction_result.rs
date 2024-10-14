@@ -4,23 +4,16 @@ use crate::primitives::{HaltReason, OutOfGasError, SuccessReason};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum InstructionResult {
-    // success codes
     #[default]
     Continue = 0x00,
     Stop,
     Return,
     SelfDestruct,
     ReturnContract,
-
-    // revert codes
-    Revert = 0x10, // revert opcode
+    Revert = 0x10,
     CallTooDeep,
     OutOfFunds,
-
-    // Actions
     CallOrCreate = 0x20,
-
-    // error codes
     OutOfGas = 0x50,
     MemoryOOG,
     MemoryLimitOOG,
@@ -39,28 +32,21 @@ pub enum InstructionResult {
     OverflowPayment,
     PrecompileError,
     NonceOverflow,
-    /// Create init code size exceeds limit (runtime).
     CreateContractSizeLimit,
-    /// Error on created contract that begins with EF
     CreateContractStartingWithEF,
-    /// EIP-3860: Limit and meter initcode. Initcode size limit exceeded.
     CreateInitCodeSizeLimit,
-    /// Fatal external error. Returned by database.
     FatalExternalError,
-    /// RETURNCONTRACT called in not init eof code.
     ReturnContractInNotInitEOF,
-    /// Legacy contract is calling opcode that is enabled only in EOF.
     EOFOpcodeDisabledInLegacy,
-    /// EOF function stack overflow
     EOFFunctionStackOverflow,
 }
 
 impl From<SuccessReason> for InstructionResult {
     fn from(value: SuccessReason) -> Self {
         match value {
-            SuccessReason::Return => InstructionResult::Return,
-            SuccessReason::Stop => InstructionResult::Stop,
-            SuccessReason::SelfDestruct => InstructionResult::SelfDestruct,
+            SuccessReason::Return => Self::Return,
+            SuccessReason::Stop => Self::Stop,
+            SuccessReason::SelfDestruct => Self::SelfDestruct,
         }
     }
 }
@@ -149,19 +135,16 @@ macro_rules! return_error {
 }
 
 impl InstructionResult {
-    /// Returns whether the result is a success.
     #[inline]
     pub const fn is_ok(self) -> bool {
-        matches!(self, crate::return_ok!())
+        matches!(self, return_ok!())
     }
 
-    /// Returns whether the result is a revert.
     #[inline]
     pub const fn is_revert(self) -> bool {
-        matches!(self, crate::return_revert!())
+        matches!(self, return_revert!())
     }
 
-    /// Returns whether the result is an error.
     #[inline]
     pub const fn is_error(self) -> bool {
         matches!(self, return_error!())
@@ -174,46 +157,41 @@ pub enum SuccessOrHalt {
     Revert,
     Halt(HaltReason),
     FatalExternalError,
-    /// Internal instruction that signals Interpreter should continue running.
     InternalContinue,
-    /// Internal instruction that signals call or create.
     InternalCallOrCreate,
 }
 
 impl SuccessOrHalt {
-    /// Returns true if the transaction returned successfully without halts.
     #[inline]
     pub fn is_success(self) -> bool {
-        matches!(self, SuccessOrHalt::Success(_))
+        matches!(self, Self::Success(_))
     }
 
-    /// Returns the [SuccessReason] value if this a successful result
     #[inline]
     pub fn to_success(self) -> Option<SuccessReason> {
-        match self {
-            SuccessOrHalt::Success(reason) => Some(reason),
-            _ => None,
+        if let Self::Success(reason) = self {
+            Some(reason)
+        } else {
+            None
         }
     }
 
-    /// Returns true if the transaction reverted.
     #[inline]
     pub fn is_revert(self) -> bool {
-        matches!(self, SuccessOrHalt::Revert)
+        matches!(self, Self::Revert)
     }
 
-    /// Returns true if the EVM has experienced an exceptional halt
     #[inline]
     pub fn is_halt(self) -> bool {
-        matches!(self, SuccessOrHalt::Halt(_))
+        matches!(self, Self::Halt(_))
     }
 
-    /// Returns the [HaltReason] value the EVM has experienced an exceptional halt
     #[inline]
     pub fn to_halt(self) -> Option<HaltReason> {
-        match self {
-            SuccessOrHalt::Halt(reason) => Some(reason),
-            _ => None,
+        if let Self::Halt(reason) = self {
+            Some(reason)
+        } else {
+            None
         }
     }
 }
@@ -221,34 +199,22 @@ impl SuccessOrHalt {
 impl From<InstructionResult> for SuccessOrHalt {
     fn from(result: InstructionResult) -> Self {
         match result {
-            InstructionResult::Continue => Self::InternalContinue, // used only in interpreter loop
+            InstructionResult::Continue => Self::InternalContinue,
             InstructionResult::Stop => Self::Success(SuccessReason::Stop),
             InstructionResult::Return => Self::Success(SuccessReason::Return),
             InstructionResult::SelfDestruct => Self::Success(SuccessReason::SelfDestruct),
             InstructionResult::Revert => Self::Revert,
-            InstructionResult::CallOrCreate => Self::InternalCallOrCreate, // used only in interpreter loop
-            InstructionResult::CallTooDeep => Self::Halt(HaltReason::CallTooDeep), // not gonna happen for first call
-            InstructionResult::OutOfFunds => Self::Halt(HaltReason::OutOfFunds), // Check for first call is done separately.
+            InstructionResult::CallOrCreate => Self::InternalCallOrCreate,
+            InstructionResult::CallTooDeep => Self::Halt(HaltReason::CallTooDeep),
+            InstructionResult::OutOfFunds => Self::Halt(HaltReason::OutOfFunds),
             InstructionResult::OutOfGas => Self::Halt(HaltReason::OutOfGas(OutOfGasError::Basic)),
-            InstructionResult::MemoryLimitOOG => {
-                Self::Halt(HaltReason::OutOfGas(OutOfGasError::MemoryLimit))
-            }
+            InstructionResult::MemoryLimitOOG => Self::Halt(HaltReason::OutOfGas(OutOfGasError::MemoryLimit)),
             InstructionResult::MemoryOOG => Self::Halt(HaltReason::OutOfGas(OutOfGasError::Memory)),
-            InstructionResult::PrecompileOOG => {
-                Self::Halt(HaltReason::OutOfGas(OutOfGasError::Precompile))
-            }
-            InstructionResult::InvalidOperandOOG => {
-                Self::Halt(HaltReason::OutOfGas(OutOfGasError::InvalidOperand))
-            }
-            InstructionResult::OpcodeNotFound | InstructionResult::ReturnContractInNotInitEOF => {
-                Self::Halt(HaltReason::OpcodeNotFound)
-            }
-            InstructionResult::CallNotAllowedInsideStatic => {
-                Self::Halt(HaltReason::CallNotAllowedInsideStatic)
-            } // first call is not static call
-            InstructionResult::StateChangeDuringStaticCall => {
-                Self::Halt(HaltReason::StateChangeDuringStaticCall)
-            }
+            InstructionResult::PrecompileOOG => Self::Halt(HaltReason::OutOfGas(OutOfGasError::Precompile)),
+            InstructionResult::InvalidOperandOOG => Self::Halt(HaltReason::OutOfGas(OutOfGasError::InvalidOperand)),
+            InstructionResult::OpcodeNotFound | InstructionResult::ReturnContractInNotInitEOF => Self::Halt(HaltReason::OpcodeNotFound),
+            InstructionResult::CallNotAllowedInsideStatic => Self::Halt(HaltReason::CallNotAllowedInsideStatic),
+            InstructionResult::StateChangeDuringStaticCall => Self::Halt(HaltReason::StateChangeDuringStaticCall),
             InstructionResult::InvalidFEOpcode => Self::Halt(HaltReason::InvalidFEOpcode),
             InstructionResult::InvalidJump => Self::Halt(HaltReason::InvalidJump),
             InstructionResult::NotActivated => Self::Halt(HaltReason::NotActivated),
@@ -256,29 +222,22 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::StackOverflow => Self::Halt(HaltReason::StackOverflow),
             InstructionResult::OutOfOffset => Self::Halt(HaltReason::OutOfOffset),
             InstructionResult::CreateCollision => Self::Halt(HaltReason::CreateCollision),
-            InstructionResult::OverflowPayment => Self::Halt(HaltReason::OverflowPayment), // Check for first call is done separately.
+            InstructionResult::OverflowPayment => Self::Halt(HaltReason::OverflowPayment),
             InstructionResult::PrecompileError => Self::Halt(HaltReason::PrecompileError),
             InstructionResult::NonceOverflow => Self::Halt(HaltReason::NonceOverflow),
-            InstructionResult::CreateContractSizeLimit
-            | InstructionResult::CreateContractStartingWithEF => {
-                Self::Halt(HaltReason::CreateContractSizeLimit)
-            }
-            InstructionResult::CreateInitCodeSizeLimit => {
-                Self::Halt(HaltReason::CreateInitCodeSizeLimit)
-            }
+            InstructionResult::CreateContractSizeLimit | InstructionResult::CreateContractStartingWithEF => Self::Halt(HaltReason::CreateContractSizeLimit),
+            InstructionResult::CreateInitCodeSizeLimit => Self::Halt(HaltReason::CreateInitCodeSizeLimit),
             InstructionResult::FatalExternalError => Self::FatalExternalError,
             InstructionResult::EOFOpcodeDisabledInLegacy => Self::Halt(HaltReason::OpcodeNotFound),
             InstructionResult::EOFFunctionStackOverflow => Self::FatalExternalError,
-            InstructionResult::ReturnContract => {
-                panic!("Unexpected EOF internal Return Contract")
-            }
+            InstructionResult::ReturnContract => panic!("Unexpected EOF internal Return Contract"),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::InstructionResult;
+    use super::*;
 
     #[test]
     fn all_results_are_covered() {
