@@ -36,15 +36,7 @@ parse = ["dep:paste", "dep:phf"]
 optimism = ["bcevm-primitives/optimism"]
 optimism-default-handler = ["optimism", "bcevm-primitives/optimism-default-handler"]
 negate-optimism-default-handler = ["bcevm-primitives/negate-optimism-default-handler"]
-dev = [
-    "memory_limit",
-    "optional_balance_check",
-    "optional_block_gas_limit",
-    "optional_eip3607",
-    "optional_gas_refund",
-    "optional_no_base_fee",
-    "optional_beneficiary_reward",
-]
+dev = ["memory_limit", "optional_balance_check", "optional_block_gas_limit", "optional_eip3607", "optional_gas_refund", "optional_no_base_fee", "optional_beneficiary_reward"]
 memory_limit = ["bcevm-primitives/memory_limit"]
 optional_balance_check = ["bcevm-primitives/optional_balance_check"]
 optional_block_gas_limit = ["bcevm-primitives/optional_block_gas_limit"]
