@@ -1,6 +1,3 @@
-//! # bcevm-interpreter
-//!
-//! bcevm Interpreter.
 #![warn(rustdoc::all)]
 #![warn(unreachable_pub, unused_crate_dependencies)]
 #![deny(unused_must_use, rust_2018_idioms)]
@@ -12,10 +9,8 @@ extern crate alloc as std;
 #[macro_use]
 mod macros;
 
-// silence lint
 #[cfg(test)]
 use serde_json as _;
-
 #[cfg(test)]
 use walkdir as _;
 
@@ -28,7 +23,7 @@ pub mod interpreter;
 pub mod interpreter_action;
 pub mod opcode;
 
-// Reexport primary types.
+pub use bcevm_primitives as primitives;
 pub use function_stack::{FunctionReturnFrame, FunctionStack};
 pub use gas::Gas;
 pub use host::{DummyHost, Host, LoadAccountResult, SStoreResult, SelfDestructResult};
@@ -43,6 +38,3 @@ pub use interpreter_action::{
 };
 pub use opcode::{Instruction, OpCode, OPCODE_INFO_JUMPTABLE};
 pub use primitives::{MAX_CODE_SIZE, MAX_INITCODE_SIZE};
-
-#[doc(hidden)]
-pub use bcevm_primitives as primitives;
