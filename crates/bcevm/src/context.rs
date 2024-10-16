@@ -1,5 +1,5 @@
 mod context_precompiles;
-pub(crate) mod evm_context;
+mod evm_context;
 mod inner_evm_context;
 
 pub use context_precompiles::{
@@ -15,11 +15,8 @@ use crate::{
 };
 use std::boxed::Box;
 
-/// Main Context structure that contains both EvmContext and External context.
 pub struct Context<EXT, DB: Database> {
-    /// Evm Context (internal context).
     pub evm: EvmContext<DB>,
-    /// External contexts.
     pub external: EXT,
 }
 
@@ -42,9 +39,8 @@ impl Default for Context<(), EmptyDB> {
 }
 
 impl Context<(), EmptyDB> {
-    /// Creates empty context. This is useful for testing.
-    pub fn new_empty() -> Context<(), EmptyDB> {
-        Context {
+    pub fn new_empty() -> Self {
+        Self {
             evm: EvmContext::new(EmptyDB::new()),
             external: (),
         }
@@ -52,9 +48,8 @@ impl Context<(), EmptyDB> {
 }
 
 impl<DB: Database> Context<(), DB> {
-    /// Creates new context with database.
-    pub fn new_with_db(db: DB) -> Context<(), DB> {
-        Context {
+    pub fn new_with_db(db: DB) -> Self {
+        Self {
             evm: EvmContext::new_with_env(db, Box::default()),
             external: (),
         }
@@ -62,24 +57,19 @@ impl<DB: Database> Context<(), DB> {
 }
 
 impl<EXT, DB: Database> Context<EXT, DB> {
-    /// Creates new context with external and database.
-    pub fn new(evm: EvmContext<DB>, external: EXT) -> Context<EXT, DB> {
-        Context { evm, external }
+    pub fn new(evm: EvmContext<DB>, external: EXT) -> Self {
+        Self { evm, external }
     }
 }
 
-/// Context with handler configuration.
 pub struct ContextWithHandlerCfg<EXT, DB: Database> {
-    /// Context of execution.
     pub context: Context<EXT, DB>,
-    /// Handler configuration.
     pub cfg: HandlerCfg,
 }
 
 impl<EXT, DB: Database> ContextWithHandlerCfg<EXT, DB> {
-    /// Creates new context with handler configuration.
     pub fn new(context: Context<EXT, DB>, cfg: HandlerCfg) -> Self {
-        Self { cfg, context }
+        Self { context, cfg }
     }
 }
 
