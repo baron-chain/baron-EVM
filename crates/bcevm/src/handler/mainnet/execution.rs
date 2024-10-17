@@ -11,7 +11,6 @@ use crate::{
 use bcevm_interpreter::{CallOutcome, EOFCreateInput, EOFCreateOutcome, InterpreterResult};
 use std::boxed::Box;
 
-/// Helper function called inside [`last_frame_return`]
 #[inline]
 pub fn frame_return_with_refund_flag<SPEC: Spec>(
     env: &Env,
@@ -23,7 +22,6 @@ pub fn frame_return_with_refund_flag<SPEC: Spec>(
     let remaining = gas.remaining();
     let refunded = gas.refunded();
 
-    // Spend the gas limit. Gas is reimbursed when the tx returns successfully.
     *gas = Gas::new_spent(env.tx.gas_limit);
 
     match instruction_result {
@@ -37,17 +35,11 @@ pub fn frame_return_with_refund_flag<SPEC: Spec>(
         _ => {}
     }
 
-    // Calculate gas refund for transaction.
-    // If config is set to disable gas refund, it will return 0.
-    // If spec is set to london, it will decrease the maximum refund amount to 5th part of
-    // gas spend. (Before london it was 2th part of gas spend)
     if refund_enabled {
-        // EIP-3529: Reduction in refunds
         gas.set_final_refund(SPEC::SPEC_ID.is_enabled_in(SpecId::LONDON));
     }
 }
 
-/// Handle output of the transaction
 #[inline]
 pub fn last_frame_return<SPEC: Spec, EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
@@ -57,7 +49,6 @@ pub fn last_frame_return<SPEC: Spec, EXT, DB: Database>(
     Ok(())
 }
 
-/// Handle frame sub call.
 #[inline]
 pub fn call<SPEC: Spec, EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
@@ -96,7 +87,6 @@ pub fn insert_call_outcome<EXT, DB: Database>(
     Ok(())
 }
 
-/// Handle frame sub create.
 #[inline]
 pub fn create<SPEC: Spec, EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
@@ -136,7 +126,6 @@ pub fn insert_create_outcome<EXT, DB: Database>(
     Ok(())
 }
 
-/// Handle frame sub create.
 #[inline]
 pub fn eofcreate<SPEC: Spec, EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
@@ -183,7 +172,6 @@ mod tests {
     use bcevm_interpreter::primitives::CancunSpec;
     use bcevm_precompile::Bytes;
 
-    /// Creates frame result.
     fn call_last_frame_return(instruction_result: InstructionResult, gas: Gas) -> Gas {
         let mut env = Env::default();
         env.tx.gas_limit = 100;
@@ -208,7 +196,6 @@ mod tests {
         assert_eq!(gas.refunded(), 0);
     }
 
-    // TODO
     #[test]
     fn test_consume_gas_with_refund() {
         let mut return_gas = Gas::new(90);
