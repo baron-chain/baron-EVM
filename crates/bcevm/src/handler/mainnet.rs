@@ -1,5 +1,3 @@
-//! Mainnet related handlers.
-
 mod execution;
 mod post_execution;
 mod pre_execution;
