@@ -1,15 +1,10 @@
-//! GasIspector. Helper Inspector to calculate gas for others.
-
 use bcevm_interpreter::CallOutcome;
-
 use crate::{
-    interpreter::{CallInputs, CreateInputs, CreateOutcome},
+    interpreter::{CallInputs, CreateInputs, CreateOutcome, Interpreter},
     primitives::db::Database,
     EvmContext, Inspector,
 };
 
-/// Helper [Inspector] that keeps track of gas.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GasInspector {
     gas_remaining: u64,
@@ -27,27 +22,15 @@ impl GasInspector {
 }
 
 impl<DB: Database> Inspector<DB> for GasInspector {
-    fn initialize_interp(
-        &mut self,
-        interp: &mut crate::interpreter::Interpreter,
-        _context: &mut EvmContext<DB>,
-    ) {
+    fn initialize_interp(&mut self, interp: &mut Interpreter, _context: &mut EvmContext<DB>) {
         self.gas_remaining = interp.gas.limit();
     }
 
-    fn step(
-        &mut self,
-        interp: &mut crate::interpreter::Interpreter,
-        _context: &mut EvmContext<DB>,
-    ) {
+    fn step(&mut self, interp: &mut Interpreter, _context: &mut EvmContext<DB>) {
         self.gas_remaining = interp.gas.remaining();
     }
 
-    fn step_end(
-        &mut self,
-        interp: &mut crate::interpreter::Interpreter,
-        _context: &mut EvmContext<DB>,
-    ) {
+    fn step_end(&mut self, interp: &mut Interpreter, _context: &mut EvmContext<DB>) {
         let remaining = interp.gas.remaining();
         self.last_gas_cost = self.gas_remaining.saturating_sub(remaining);
         self.gas_remaining = remaining;
@@ -82,15 +65,14 @@ impl<DB: Database> Inspector<DB> for GasInspector {
 
 #[cfg(test)]
 mod tests {
-
-    use bcevm_interpreter::CallOutcome;
-    use bcevm_interpreter::CreateOutcome;
-
+    use super::*;
     use crate::{
         inspectors::GasInspector,
-        interpreter::{CallInputs, CreateInputs, Interpreter},
-        primitives::Log,
-        Database, EvmContext, Inspector,
+        primitives::{Log, address, Bytecode, Bytes, TransactTo},
+        interpreter::opcode,
+        db::BenchmarkDB,
+        inspector::inspector_handle_register,
+        Evm,
     };
 
     #[derive(Default, Debug)]
@@ -116,105 +98,61 @@ mod tests {
 
         fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
             self.gas_inspector.step_end(interp, context);
-            self.gas_remaining_steps
-                .push((self.pc, self.gas_inspector.gas_remaining()));
+            self.gas_remaining_steps.push((self.pc, self.gas_inspector.gas_remaining()));
         }
 
-        fn call(
-            &mut self,
-            context: &mut EvmContext<DB>,
-            call: &mut CallInputs,
-        ) -> Option<CallOutcome> {
+        fn call(&mut self, context: &mut EvmContext<DB>, call: &mut CallInputs) -> Option<CallOutcome> {
             self.gas_inspector.call(context, call)
         }
 
-        fn call_end(
-            &mut self,
-            context: &mut EvmContext<DB>,
-            inputs: &CallInputs,
-            outcome: CallOutcome,
-        ) -> CallOutcome {
+        fn call_end(&mut self, context: &mut EvmContext<DB>, inputs: &CallInputs, outcome: CallOutcome) -> CallOutcome {
             self.gas_inspector.call_end(context, inputs, outcome)
         }
 
-        fn create(
-            &mut self,
-            context: &mut EvmContext<DB>,
-            call: &mut CreateInputs,
-        ) -> Option<CreateOutcome> {
+        fn create(&mut self, context: &mut EvmContext<DB>, call: &mut CreateInputs) -> Option<CreateOutcome> {
             self.gas_inspector.create(context, call);
             None
         }
 
-        fn create_end(
-            &mut self,
-            context: &mut EvmContext<DB>,
-            inputs: &CreateInputs,
-            outcome: CreateOutcome,
-        ) -> CreateOutcome {
+        fn create_end(&mut self, context: &mut EvmContext<DB>, inputs: &CreateInputs, outcome: CreateOutcome) -> CreateOutcome {
             self.gas_inspector.create_end(context, inputs, outcome)
         }
     }
 
     #[test]
     fn test_gas_inspector() {
-        use crate::{
-            db::BenchmarkDB,
-            inspector::inspector_handle_register,
-            interpreter::opcode,
-            primitives::{address, Bytecode, Bytes, TransactTo},
-            Evm,
-        };
-
         let contract_data: Bytes = Bytes::from(vec![
-            opcode::PUSH1,
-            0x1,
-            opcode::PUSH1,
-            0xb,
+            opcode::PUSH1, 0x1,
+            opcode::PUSH1, 0xb,
             opcode::JUMPI,
-            opcode::PUSH1,
-            0x1,
-            opcode::PUSH1,
-            0x1,
-            opcode::PUSH1,
-            0x1,
+            opcode::PUSH1, 0x1,
+            opcode::PUSH1, 0x1,
+            opcode::PUSH1, 0x1,
             opcode::JUMPDEST,
             opcode::STOP,
         ]);
         let bytecode = Bytecode::new_raw(contract_data);
 
         let mut evm: Evm<'_, StackInspector, BenchmarkDB> = Evm::builder()
-            .with_db(BenchmarkDB::new_bytecode(bytecode.clone()))
+            .with_db(BenchmarkDB::new_bytecode(bytecode))
             .with_external_context(StackInspector::default())
             .modify_tx_env(|tx| {
                 tx.clear();
                 tx.caller = address!("1000000000000000000000000000000000000000");
-                tx.transact_to =
-                    TransactTo::Call(address!("0000000000000000000000000000000000000000"));
+                tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
                 tx.gas_limit = 21100;
             })
             .append_handler_register(inspector_handle_register)
             .build();
 
-        // run evm.
         evm.transact().unwrap();
 
         let inspector = evm.into_context().external;
 
-        // starting from 100gas
-        let steps = vec![
-            // push1 -3
-            (0, 97),
-            // push1 -3
-            (2, 94),
-            // jumpi -10
-            (4, 84),
-            // jumpdest 1
-            (11, 83),
-            // stop 0
-            (12, 83),
+        let expected_steps = vec![
+            (0, 97), (2, 94), (4, 84), (11, 83), (12, 83),
         ];
 
-        assert_eq!(inspector.gas_remaining_steps, steps);
+        assert_eq!(inspector.gas_remaining_steps, expected_steps);
     }
 }
