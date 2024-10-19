@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use bcevm::{
     db::BenchmarkDB,
     interpreter::{analysis::to_analysed, Contract, DummyHost, Interpreter},
@@ -9,52 +9,24 @@ use bcevm_interpreter::{opcode::make_instruction_table, SharedMemory, EMPTY_SHAR
 use std::time::Duration;
 
 fn analysis(c: &mut Criterion) {
-    let evm = Evm::builder()
-        .modify_tx_env(|tx| {
-            tx.caller = address!("0000000000000000000000000000000000000002");
-            tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
-            tx.data = bytes!("8035F0CE");
-        })
-        .build();
-
+    let evm = create_evm(address!("0000000000000000000000000000000000000002"), bytes!("8035F0CE"));
     let contract_data: Bytes = hex::decode(ANALYSIS).unwrap().into();
 
-    let mut g = c.benchmark_group("analysis");
-    g.noise_threshold(0.03)
-        .warm_up_time(Duration::from_secs(3))
-        .measurement_time(Duration::from_secs(10))
-        .sample_size(10);
+    let mut g = create_benchmark_group(c, "analysis");
 
-    let raw = Bytecode::new_raw(contract_data.clone());
-    let mut evm = evm.modify().reset_handler_with_db(BenchmarkDB::new_bytecode(raw)).build();
-    bench_transact(&mut g, &mut evm);
-
-    let checked = Bytecode::new_raw(contract_data.clone());
-    let mut evm = evm.modify().reset_handler_with_db(BenchmarkDB::new_bytecode(checked)).build();
-    bench_transact(&mut g, &mut evm);
-
-    let analysed = to_analysed(Bytecode::new_raw(contract_data));
-    let mut evm = evm.modify().reset_handler_with_db(BenchmarkDB::new_bytecode(analysed)).build();
-    bench_transact(&mut g, &mut evm);
+    bench_bytecode(&mut g, &evm, contract_data.clone(), Bytecode::new_raw);
+    bench_bytecode(&mut g, &evm, contract_data.clone(), Bytecode::new_raw);
+    bench_bytecode(&mut g, &evm, contract_data, |data| to_analysed(Bytecode::new_raw(data)));
 
     g.finish();
 }
 
 fn snailtracer(c: &mut Criterion) {
-    let mut evm = Evm::builder()
+    let mut evm = create_evm(address!("1000000000000000000000000000000000000000"), bytes!("30627b7c"))
         .with_db(BenchmarkDB::new_bytecode(bytecode(SNAILTRACER)))
-        .modify_tx_env(|tx| {
-            tx.caller = address!("1000000000000000000000000000000000000000");
-            tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
-            tx.data = bytes!("30627b7c");
-        })
         .build();
 
-    let mut g = c.benchmark_group("snailtracer");
-    g.noise_threshold(0.03)
-        .warm_up_time(Duration::from_secs(3))
-        .measurement_time(Duration::from_secs(10))
-        .sample_size(10);
+    let mut g = create_benchmark_group(c, "snailtracer");
     bench_transact(&mut g, &mut evm);
     bench_eval(&mut g, &mut evm);
     g.finish();
@@ -70,23 +42,47 @@ fn transfer(c: &mut Criterion) {
         })
         .build();
 
-    let mut g = c.benchmark_group("transfer");
-    g.noise_threshold(0.03).warm_up_time(Duration::from_secs(1));
+    let mut g = create_benchmark_group(c, "transfer");
     bench_transact(&mut g, &mut evm);
     g.finish();
 }
 
-fn bench_transact<EXT>(g: &mut BenchmarkGroup<'_, WallTime>, evm: &mut Evm<'_, EXT, BenchmarkDB>) {
+fn create_evm(caller: [u8; 20], data: Vec<u8>) -> Evm<'static, (), BenchmarkDB> {
+    Evm::builder()
+        .modify_tx_env(|tx| {
+            tx.caller = caller;
+            tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
+            tx.data = data;
+        })
+        .build()
+}
+
+fn create_benchmark_group(c: &mut Criterion, name: &str) -> BenchmarkGroup<criterion::measurement::WallTime> {
+    c.benchmark_group(name)
+        .noise_threshold(0.03)
+        .warm_up_time(Duration::from_secs(3))
+        .measurement_time(Duration::from_secs(10))
+        .sample_size(10)
+}
+
+fn bench_bytecode<F>(g: &mut BenchmarkGroup<criterion::measurement::WallTime>, evm: &Evm<'static, (), BenchmarkDB>, data: Bytes, bytecode_fn: F)
+where
+    F: Fn(Bytes) -> Bytecode,
+{
+    let mut evm = evm.modify().reset_handler_with_db(BenchmarkDB::new_bytecode(bytecode_fn(data))).build();
+    bench_transact(g, &mut evm);
+}
+
+fn bench_transact<EXT>(g: &mut BenchmarkGroup<criterion::measurement::WallTime>, evm: &mut Evm<'_, EXT, BenchmarkDB>) {
     let state = match evm.context.evm.db.0 {
         Bytecode::LegacyRaw(_) => "raw",
         Bytecode::LegacyAnalyzed(_) => "analysed",
         Bytecode::Eof(_) => "eof",
     };
-    let id = format!("transact/{state}");
-    g.bench_function(id, |b| b.iter(|| evm.transact().unwrap()));
+    g.bench_function(format!("transact/{state}"), |b| b.iter(|| evm.transact().unwrap()));
 }
 
-fn bench_eval(g: &mut BenchmarkGroup<'_, WallTime>, evm: &mut Evm<'static, (), BenchmarkDB>) {
+fn bench_eval(g: &mut BenchmarkGroup<criterion::measurement::WallTime>, evm: &mut Evm<'static, (), BenchmarkDB>) {
     g.bench_function("eval", |b| {
         let contract = Contract {
             input: evm.context.evm.env.tx.data.clone(),
