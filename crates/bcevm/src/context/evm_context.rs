@@ -1,32 +1,20 @@
 use bcevm_interpreter::CallValue;
-
 use super::inner_evm_context::InnebcevmContext;
 use crate::{
     db::Database,
-    interpreter::{
-        return_ok, CallInputs, Contract, Gas, InstructionResult, Interpreter, InterpreterResult,
-    },
+    interpreter::{return_ok, CallInputs, Contract, Gas, InstructionResult, Interpreter, InterpreterResult},
     primitives::{Address, Bytes, EVMError, Env, HashSet, U256},
     ContextPrecompiles, FrameOrResult, CALL_STACK_LIMIT,
 };
-use core::{
-    fmt,
-    ops::{Deref, DerefMut},
-};
+use core::{fmt, ops::{Deref, DerefMut}};
 use std::boxed::Box;
 
-/// EVM context that contains the inner EVM context and precompiles.
 pub struct EvmContext<DB: Database> {
-    /// Inner EVM context.
     pub inner: InnebcevmContext<DB>,
-    /// Precompiles that are available for evm.
     pub precompiles: ContextPrecompiles<DB>,
 }
 
-impl<DB: Database + Clone> Clone for EvmContext<DB>
-where
-    DB::Error: Clone,
-{
+impl<DB: Database + Clone> Clone for EvmContext<DB> where DB::Error: Clone {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -35,11 +23,7 @@ where
     }
 }
 
-impl<DB> fmt::Debug for EvmContext<DB>
-where
-    DB: Database + fmt::Debug,
-    DB::Error: fmt::Debug,
-{
+impl<DB: Database + fmt::Debug> fmt::Debug for EvmContext<DB> where DB::Error: fmt::Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EvmContext")
             .field("inner", &self.inner)
@@ -50,20 +34,14 @@ where
 
 impl<DB: Database> Deref for EvmContext<DB> {
     type Target = InnebcevmContext<DB>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
+    fn deref(&self) -> &Self::Target { &self.inner }
 }
 
 impl<DB: Database> DerefMut for EvmContext<DB> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.inner }
 }
 
 impl<DB: Database> EvmContext<DB> {
-    /// Create new context with database.
     pub fn new(db: DB) -> Self {
         Self {
             inner: InnebcevmContext::new(db),
@@ -71,8 +49,6 @@ impl<DB: Database> EvmContext<DB> {
         }
     }
 
-    /// Creates a new context with the given environment and database.
-    #[inline]
     pub fn new_with_env(db: DB, env: Box<Env>) -> Self {
         Self {
             inner: InnebcevmContext::new_with_env(db, env),
@@ -80,10 +56,6 @@ impl<DB: Database> EvmContext<DB> {
         }
     }
 
-    /// Sets the database.
-    ///
-    /// Note that this will ignore the previous `error` if set.
-    #[inline]
     pub fn with_db<ODB: Database>(self, db: ODB) -> EvmContext<ODB> {
         EvmContext {
             inner: self.inner.with_db(db),
@@ -91,104 +63,61 @@ impl<DB: Database> EvmContext<DB> {
         }
     }
 
-    /// Sets precompiles
-    #[inline]
     pub fn set_precompiles(&mut self, precompiles: ContextPrecompiles<DB>) {
-        // set warm loaded addresses.
-        self.journaled_state.warm_preloaded_addresses =
-            precompiles.addresses().copied().collect::<HashSet<_>>();
+        self.journaled_state.warm_preloaded_addresses = precompiles.addresses().copied().collect();
         self.precompiles = precompiles;
     }
 
-    /// Call precompile contract
-    #[inline]
-    fn call_precompile(
-        &mut self,
-        address: Address,
-        input_data: &Bytes,
-        gas: Gas,
-    ) -> Option<InterpreterResult> {
-        let out = self
-            .precompiles
-            .call(address, input_data, gas.limit(), &mut self.inner)?;
-
-        let mut result = InterpreterResult {
-            result: InstructionResult::Return,
-            gas,
-            output: Bytes::new(),
-        };
-
-        match out {
-            Ok((gas_used, data)) => {
-                if result.gas.record_cost(gas_used) {
-                    result.result = InstructionResult::Return;
-                    result.output = data;
-                } else {
-                    result.result = InstructionResult::PrecompileOOG;
+    fn call_precompile(&mut self, address: Address, input_data: &Bytes, gas: Gas) -> Option<InterpreterResult> {
+        self.precompiles.call(address, input_data, gas.limit(), &mut self.inner).map(|out| {
+            let mut result = InterpreterResult { result: InstructionResult::Return, gas, output: Bytes::new() };
+            match out {
+                Ok((gas_used, data)) => {
+                    if result.gas.record_cost(gas_used) {
+                        result.output = data;
+                    } else {
+                        result.result = InstructionResult::PrecompileOOG;
+                    }
+                }
+                Err(e) => {
+                    result.result = if e == crate::precompile::Error::OutOfGas {
+                        InstructionResult::PrecompileOOG
+                    } else {
+                        InstructionResult::PrecompileError
+                    };
                 }
             }
-            Err(e) => {
-                result.result = if e == crate::precompile::Error::OutOfGas {
-                    InstructionResult::PrecompileOOG
-                } else {
-                    InstructionResult::PrecompileError
-                };
-            }
-        }
-        Some(result)
+            result
+        })
     }
 
-    /// Make call frame
-    #[inline]
-    pub fn make_call_frame(
-        &mut self,
-        inputs: &CallInputs,
-    ) -> Result<FrameOrResult, EVMError<DB::Error>> {
+    pub fn make_call_frame(&mut self, inputs: &CallInputs) -> Result<FrameOrResult, EVMError<DB::Error>> {
         let gas = Gas::new(inputs.gas_limit);
 
-        let return_result = |instruction_result: InstructionResult| {
-            Ok(FrameOrResult::new_call_result(
-                InterpreterResult {
-                    result: instruction_result,
-                    gas,
-                    output: Bytes::new(),
-                },
-                inputs.return_memory_offset.clone(),
-            ))
-        };
-
-        // Check depth
         if self.journaled_state.depth() > CALL_STACK_LIMIT {
-            return return_result(InstructionResult::CallTooDeep);
+            return Ok(FrameOrResult::new_call_result(
+                InterpreterResult { result: InstructionResult::CallTooDeep, gas, output: Bytes::new() },
+                inputs.return_memory_offset.clone(),
+            ));
         }
 
-        let (account, _) = self
-            .inner
-            .journaled_state
-            .load_code(inputs.bytecode_address, &mut self.inner.db)?;
+        let (account, _) = self.inner.journaled_state.load_code(inputs.bytecode_address, &mut self.inner.db)?;
         let code_hash = account.info.code_hash();
         let bytecode = account.info.code.clone().unwrap_or_default();
-
-        // Create subroutine checkpoint
         let checkpoint = self.journaled_state.checkpoint();
 
-        // Touch address. For "EIP-158 State Clear", this will erase empty accounts.
         match inputs.value {
-            // if transfer value is zero, do the touch.
             CallValue::Transfer(value) if value == U256::ZERO => {
                 self.load_account(inputs.target_address)?;
                 self.journaled_state.touch(&inputs.target_address);
             }
             CallValue::Transfer(value) => {
-                // Transfer value from caller to called account
-                if let Some(result) = self.inner.journaled_state.transfer(
-                    &inputs.caller,
-                    &inputs.target_address,
-                    value,
-                    &mut self.inner.db,
-                )? {
+                if let Some(result) = self.inner.journaled_state.transfer(&inputs.caller, &inputs.target_address, value, &mut self.inner.db)? {
                     self.journaled_state.checkpoint_revert(checkpoint);
-                    return return_result(result);
+                    return Ok(FrameOrResult::new_call_result(
+                        InterpreterResult { result, gas, output: Bytes::new() },
+                        inputs.return_memory_offset.clone(),
+                    ));
                 }
             }
             _ => {}
@@ -200,14 +129,9 @@ impl<DB: Database> EvmContext<DB> {
             } else {
                 self.journaled_state.checkpoint_revert(checkpoint);
             }
-            Ok(FrameOrResult::new_call_result(
-                result,
-                inputs.return_memory_offset.clone(),
-            ))
+            Ok(FrameOrResult::new_call_result(result, inputs.return_memory_offset.clone()))
         } else if !bytecode.is_empty() {
-            let contract =
-                Contract::new_with_context(inputs.input.clone(), bytecode, Some(code_hash), inputs);
-            // Create interpreter and executes call and push new CallStackFrame.
+            let contract = Contract::new_with_context(inputs.input.clone(), bytecode, Some(code_hash), inputs);
             Ok(FrameOrResult::new_call_frame(
                 inputs.return_memory_offset.clone(),
                 checkpoint,
@@ -215,12 +139,14 @@ impl<DB: Database> EvmContext<DB> {
             ))
         } else {
             self.journaled_state.checkpoint_commit();
-            return_result(InstructionResult::Stop)
+            Ok(FrameOrResult::new_call_result(
+                InterpreterResult { result: InstructionResult::Stop, gas, output: Bytes::new() },
+                inputs.return_memory_offset.clone(),
+            ))
         }
     }
 }
 
-/// Test utilities for the [`EvmContext`].
 #[cfg(any(test, feature = "test-utils"))]
 pub(crate) mod test_utils {
     use super::*;
@@ -230,10 +156,8 @@ pub(crate) mod test_utils {
         primitives::{address, SpecId, B256},
     };
 
-    /// Mock caller address.
     pub const MOCK_CALLER: Address = address!("0000000000000000000000000000000000000000");
 
-    /// Creates `CallInputs` that calls a provided contract address from the mock caller.
     pub fn create_mock_call_inputs(to: Address) -> CallInputs {
         CallInputs {
             input: Bytes::new(),
@@ -249,16 +173,13 @@ pub(crate) mod test_utils {
         }
     }
 
-    /// Creates an evm context with a cache db backend.
-    /// Additionally loads the mock caller account into the db,
-    /// and sets the balance to the provided U256 value.
     pub fn create_cache_db_evm_context_with_balance(
         env: Box<Env>,
         mut db: CacheDB<EmptyDB>,
         balance: U256,
     ) -> EvmContext<CacheDB<EmptyDB>> {
         db.insert_account_info(
-            test_utils::MOCK_CALLER,
+            MOCK_CALLER,
             crate::primitives::AccountInfo {
                 nonce: 0,
                 balance,
@@ -269,7 +190,6 @@ pub(crate) mod test_utils {
         create_cache_db_evm_context(env, db)
     }
 
-    /// Creates a cached db evm context.
     pub fn create_cache_db_evm_context(
         env: Box<Env>,
         db: CacheDB<EmptyDB>,
@@ -287,7 +207,6 @@ pub(crate) mod test_utils {
         }
     }
 
-    /// Returns a new `EvmContext` with an empty journaled state.
     pub fn create_empty_evm_context(env: Box<Env>, db: EmptyDB) -> EvmContext<EmptyDB> {
         EvmContext {
             inner: InnebcevmContext {
@@ -311,90 +230,62 @@ mod tests {
         primitives::{address, Bytecode},
         Frame, JournalEntry,
     };
-    use std::boxed::Box;
     use test_utils::*;
 
-    // Tests that the `EVMContext::make_call_frame` function returns an error if the
-    // call stack is too deep.
     #[test]
     fn test_make_call_frame_stack_too_deep() {
-        let env = Env::default();
-        let db = EmptyDB::default();
-        let mut context = test_utils::create_empty_evm_context(Box::new(env), db);
+        let mut context = create_empty_evm_context(Box::new(Env::default()), EmptyDB::default());
         context.journaled_state.depth = CALL_STACK_LIMIT as usize + 1;
         let contract = address!("dead10000000000000000000000000000001dead");
-        let call_inputs = test_utils::create_mock_call_inputs(contract);
+        let call_inputs = create_mock_call_inputs(contract);
         let res = context.make_call_frame(&call_inputs);
-        let Ok(FrameOrResult::Result(err)) = res else {
-            panic!("Expected FrameOrResult::Result");
-        };
-        assert_eq!(
-            err.interpreter_result().result,
-            InstructionResult::CallTooDeep
-        );
+        let Ok(FrameOrResult::Result(err)) = res else { panic!("Expected FrameOrResult::Result") };
+        assert_eq!(err.interpreter_result().result, InstructionResult::CallTooDeep);
     }
 
-    // Tests that the `EVMContext::make_call_frame` function returns an error if the
-    // transfer fails on the journaled state. It also verifies that the revert was
-    // checkpointed on the journaled state correctly.
     #[test]
     fn test_make_call_frame_transfer_revert() {
-        let env = Env::default();
-        let db = EmptyDB::default();
-        let mut evm_context = test_utils::create_empty_evm_context(Box::new(env), db);
+        let mut evm_context = create_empty_evm_context(Box::new(Env::default()), EmptyDB::default());
         let contract = address!("dead10000000000000000000000000000001dead");
-        let mut call_inputs = test_utils::create_mock_call_inputs(contract);
+        let mut call_inputs = create_mock_call_inputs(contract);
         call_inputs.value = CallValue::Transfer(U256::from(1));
         let res = evm_context.make_call_frame(&call_inputs);
-        let Ok(FrameOrResult::Result(result)) = res else {
-            panic!("Expected FrameOrResult::Result");
-        };
-        assert_eq!(
-            result.interpreter_result().result,
-            InstructionResult::OutOfFunds
-        );
-        let checkpointed = vec![vec![JournalEntry::AccountLoaded { address: contract }]];
-        assert_eq!(evm_context.journaled_state.journal, checkpointed);
+        let Ok(FrameOrResult::Result(result)) = res else { panic!("Expected FrameOrResult::Result") };
+        assert_eq!(result.interpreter_result().result, InstructionResult::OutOfFunds);
+        assert_eq!(evm_context.journaled_state.journal, vec![vec![JournalEntry::AccountLoaded { address: contract }]]);
         assert_eq!(evm_context.journaled_state.depth, 0);
     }
 
     #[test]
     fn test_make_call_frame_missing_code_context() {
-        let env = Env::default();
-        let cdb = CacheDB::new(EmptyDB::default());
-        let bal = U256::from(3_000_000_000_u128);
-        let mut context = create_cache_db_evm_context_with_balance(Box::new(env), cdb, bal);
+        let mut context = create_cache_db_evm_context_with_balance(
+            Box::new(Env::default()),
+            CacheDB::new(EmptyDB::default()),
+            U256::from(3_000_000_000_u128),
+        );
         let contract = address!("dead10000000000000000000000000000001dead");
-        let call_inputs = test_utils::create_mock_call_inputs(contract);
+        let call_inputs = create_mock_call_inputs(contract);
         let res = context.make_call_frame(&call_inputs);
-        let Ok(FrameOrResult::Result(result)) = res else {
-            panic!("Expected FrameOrResult::Result");
-        };
+        let Ok(FrameOrResult::Result(result)) = res else { panic!("Expected FrameOrResult::Result") };
         assert_eq!(result.interpreter_result().result, InstructionResult::Stop);
     }
 
     #[test]
     fn test_make_call_frame_succeeds() {
-        let env = Env::default();
         let mut cdb = CacheDB::new(EmptyDB::default());
         let bal = U256::from(3_000_000_000_u128);
         let by = Bytecode::new_raw(Bytes::from(vec![0x60, 0x00, 0x60, 0x00]));
         let contract = address!("dead10000000000000000000000000000001dead");
-        cdb.insert_account_info(
-            contract,
-            crate::primitives::AccountInfo {
-                nonce: 0,
-                balance: bal,
-                code_hash: by.clone().hash_slow(),
-                code: Some(by),
-            },
-        );
-        let mut evm_context = create_cache_db_evm_context_with_balance(Box::new(env), cdb, bal);
-        let call_inputs = test_utils::create_mock_call_inputs(contract);
+        cdb.insert_account_info(contract, crate::primitives::AccountInfo {
+            nonce: 0,
+            balance: bal,
+            code_hash: by.clone().hash_slow(),
+            code: Some(by),
+        });
+        let mut evm_context = create_cache_db_evm_context_with_balance(Box::new(Env::default()), cdb, bal);
+        let call_inputs = create_mock_call_inputs(contract);
         let res = evm_context.make_call_frame(&call_inputs);
-        let Ok(FrameOrResult::Frame(Frame::Call(call_frame))) = res else {
-            panic!("Expected FrameOrResult::Frame(Frame::Call(..))");
-        };
-        assert_eq!(call_frame.return_memory_range, 0..0,);
+        let Ok(FrameOrResult::Frame(Frame::Call(call_frame))) = res else { panic!("Expected FrameOrResult::Frame(Frame::Call(..))") };
+        assert_eq!(call_frame.return_memory_range, 0..0);
     }
 }
