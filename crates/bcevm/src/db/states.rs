@@ -1,17 +1,16 @@
-pub mod account_status;
-pub mod bundle_account;
-pub mod bundle_state;
-pub mod cache;
-pub mod cache_account;
-pub mod changes;
-pub mod plain_account;
-pub mod reverts;
-pub mod state;
-pub mod state_builder;
-pub mod transition_account;
-pub mod transition_state;
+mod account_status;
+mod bundle_account;
+mod bundle_state;
+mod cache;
+mod cache_account;
+mod changes;
+mod plain_account;
+mod reverts;
+mod state;
+mod state_builder;
+mod transition_account;
+mod transition_state;
 
-/// Account status for Block and Bundle states.
 pub use account_status::AccountStatus;
 pub use bundle_account::BundleAccount;
 pub use bundle_state::{BundleBuilder, BundleState, OriginalValuesKnown};
