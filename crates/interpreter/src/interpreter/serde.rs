@@ -1,12 +1,11 @@
 use crate::{
     Contract, FunctionStack, Gas, InstructionResult, InterpreterAction, SharedMemory, Stack,
 };
-
 use super::Interpreter;
 use bcevm_primitives::Bytes;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
 impl Serialize for Interpreter {
@@ -14,10 +13,8 @@ impl Serialize for Interpreter {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("Interpreter", 8)?;
-        // Convert the instruction pointer to a usize for serialization
-        let program_counter = self.program_counter();
-        state.serialize_field("program_counter", &program_counter)?;
+        let mut state = serializer.serialize_struct("Interpreter", 13)?;
+        state.serialize_field("program_counter", &self.program_counter())?;
         state.serialize_field("gas", &self.gas)?;
         state.serialize_field("contract", &self.contract)?;
         state.serialize_field("instruction_result", &self.instruction_result)?;
@@ -39,11 +36,9 @@ impl<'de> Deserialize<'de> for Interpreter {
     where
         D: Deserializer<'de>,
     {
-        struct InterpreterVisitor;
-
-        #[derive(serde::Deserialize)]
+        #[derive(Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
-        enum InterpreterFields {
+        enum Field {
             ProgramCounter,
             Gas,
             Contract,
@@ -59,80 +54,72 @@ impl<'de> Deserialize<'de> for Interpreter {
             NextAction,
         }
 
-        #[allow(clippy::too_many_arguments)]
-        fn rebuild_interp(
-            program_counter: isize,
-            gas: Gas,
-            contract: Contract,
-            instruction_result: InstructionResult,
-            bytecode: Bytes,
-            is_eof: bool,
-            is_eof_init: bool,
-            shared_memory: SharedMemory,
-            stack: Stack,
-            function_stack: FunctionStack,
-            return_data_buffer: Bytes,
-            is_static: bool,
-            next_action: InterpreterAction,
-        ) -> Result<Interpreter, &'static str> {
-            // Reconstruct the instruction pointer from usize
-            if program_counter < 0 || program_counter >= bytecode.len() as isize {
-                return Err("program_counter index out of range");
-            }
-
-            // SAFETY: range of program_counter checked above
-            let instruction_pointer = unsafe { bytecode.as_ptr().offset(program_counter) };
-
-            // Construct and return the Interpreter instance
-            Ok(Interpreter {
-                instruction_pointer,
-                gas,
-                contract,
-                instruction_result,
-                bytecode,
-                is_eof,
-                is_eof_init,
-                shared_memory,
-                stack,
-                function_stack,
-                return_data_buffer,
-                is_static,
-                next_action,
-            })
-        }
+        struct InterpreterVisitor;
 
         impl<'de> Visitor<'de> for InterpreterVisitor {
             type Value = Interpreter;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("struct Interpreter")
             }
 
-            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            fn visit_map<V>(self, mut map: V) -> Result<Interpreter, V::Error>
             where
-                A: de::SeqAccess<'de>,
+                V: MapAccess<'de>,
             {
-                macro_rules! extract_field {
-                    ($i:ident, $idx:expr) => {
-                        let $i = seq
-                            .next_element()?
-                            .ok_or_else(|| de::Error::invalid_length($idx, &self))?;
-                    };
+                let mut program_counter = None;
+                let mut gas = None;
+                let mut contract = None;
+                let mut instruction_result = None;
+                let mut bytecode = None;
+                let mut is_eof = None;
+                let mut is_eof_init = None;
+                let mut shared_memory = None;
+                let mut stack = None;
+                let mut function_stack = None;
+                let mut return_data_buffer = None;
+                let mut is_static = None;
+                let mut next_action = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::ProgramCounter => { program_counter = Some(map.next_value()?); }
+                        Field::Gas => { gas = Some(map.next_value()?); }
+                        Field::Contract => { contract = Some(map.next_value()?); }
+                        Field::InstructionResult => { instruction_result = Some(map.next_value()?); }
+                        Field::Bytecode => { bytecode = Some(map.next_value()?); }
+                        Field::IsEof => { is_eof = Some(map.next_value()?); }
+                        Field::IsEofInit => { is_eof_init = Some(map.next_value()?); }
+                        Field::SharedMemory => { shared_memory = Some(map.next_value()?); }
+                        Field::Stack => { stack = Some(map.next_value()?); }
+                        Field::FunctionStack => { function_stack = Some(map.next_value()?); }
+                        Field::ReturnDataBuffer => { return_data_buffer = Some(map.next_value()?); }
+                        Field::IsStatic => { is_static = Some(map.next_value()?); }
+                        Field::NextAction => { next_action = Some(map.next_value()?); }
+                    }
                 }
-                extract_field!(instruction_pointer, 0);
-                extract_field!(gas, 1);
-                extract_field!(contract, 2);
-                extract_field!(instruction_result, 3);
-                extract_field!(bytecode, 4);
-                extract_field!(is_eof, 5);
-                extract_field!(is_eof_init, 6);
-                extract_field!(shared_memory, 7);
-                extract_field!(stack, 8);
-                extract_field!(function_stack, 9);
-                extract_field!(return_data_buffer, 10);
-                extract_field!(is_static, 11);
-                extract_field!(next_action, 12);
-                rebuild_interp(
+
+                let program_counter = program_counter.ok_or_else(|| de::Error::missing_field("program_counter"))?;
+                let gas = gas.ok_or_else(|| de::Error::missing_field("gas"))?;
+                let contract = contract.ok_or_else(|| de::Error::missing_field("contract"))?;
+                let instruction_result = instruction_result.ok_or_else(|| de::Error::missing_field("instruction_result"))?;
+                let bytecode = bytecode.ok_or_else(|| de::Error::missing_field("bytecode"))?;
+                let is_eof = is_eof.ok_or_else(|| de::Error::missing_field("is_eof"))?;
+                let is_eof_init = is_eof_init.ok_or_else(|| de::Error::missing_field("is_eof_init"))?;
+                let shared_memory = shared_memory.ok_or_else(|| de::Error::missing_field("shared_memory"))?;
+                let stack = stack.ok_or_else(|| de::Error::missing_field("stack"))?;
+                let function_stack = function_stack.ok_or_else(|| de::Error::missing_field("function_stack"))?;
+                let return_data_buffer = return_data_buffer.ok_or_else(|| de::Error::missing_field("return_data_buffer"))?;
+                let is_static = is_static.ok_or_else(|| de::Error::missing_field("is_static"))?;
+                let next_action = next_action.ok_or_else(|| de::Error::missing_field("next_action"))?;
+
+                if program_counter < 0 || program_counter >= bytecode.len() as isize {
+                    return Err(de::Error::custom("program_counter index out of range"));
+                }
+
+                let instruction_pointer = unsafe { bytecode.as_ptr().offset(program_counter) };
+
+                Ok(Interpreter {
                     instruction_pointer,
                     gas,
                     contract,
@@ -146,82 +133,14 @@ impl<'de> Deserialize<'de> for Interpreter {
                     return_data_buffer,
                     is_static,
                     next_action,
-                )
-                .map_err(de::Error::custom)
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<Interpreter, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                macro_rules! parse_map {
-                    ( $(($enum:pat, $var_name:ident)),* ) => {
-                        $(
-                            let mut $var_name = None;
-                        )*
-                        while let Some(key) = map.next_key()? {
-                            match key {
-                                $(
-                                    $enum => {
-                                        $var_name = Some(map.next_value()?);
-                                    }
-                                )*
-                            }
-                        }
-                        $(
-                            let $var_name = $var_name.ok_or_else(|| de::Error::missing_field(stringify!($var_name)))?;
-                        )*
-                    };
-                }
-                parse_map!(
-                    (InterpreterFields::ProgramCounter, program_counter),
-                    (InterpreterFields::Gas, gas),
-                    (InterpreterFields::Contract, contract),
-                    (InterpreterFields::InstructionResult, instruction_result),
-                    (InterpreterFields::Bytecode, bytecode),
-                    (InterpreterFields::IsEof, is_eof),
-                    (InterpreterFields::IsEofInit, is_eof_init),
-                    (InterpreterFields::SharedMemory, shared_memory),
-                    (InterpreterFields::Stack, stack),
-                    (InterpreterFields::FunctionStack, function_stack),
-                    (InterpreterFields::ReturnDataBuffer, return_data_buffer),
-                    (InterpreterFields::IsStatic, is_static),
-                    (InterpreterFields::NextAction, next_action)
-                );
-
-                rebuild_interp(
-                    program_counter,
-                    gas,
-                    contract,
-                    instruction_result,
-                    bytecode,
-                    is_eof,
-                    is_eof_init,
-                    shared_memory,
-                    stack,
-                    function_stack,
-                    return_data_buffer,
-                    is_static,
-                    next_action,
-                )
-                .map_err(de::Error::custom)
+                })
             }
         }
 
         const FIELDS: &[&str] = &[
-            "program_counter",
-            "gas",
-            "contract",
-            "instruction_result",
-            "bytecode",
-            "is_eof",
-            "is_eof_init",
-            "shared_memory",
-            "stack",
-            "function_stack",
-            "return_data_buffer",
-            "is_static",
-            "next_action",
+            "program_counter", "gas", "contract", "instruction_result", "bytecode",
+            "is_eof", "is_eof_init", "shared_memory", "stack", "function_stack",
+            "return_data_buffer", "is_static", "next_action",
         ];
 
         deserializer.deserialize_struct("Interpreter", FIELDS, InterpreterVisitor)
