@@ -4,27 +4,18 @@ use crate::{
     CallInputs,
 };
 
-/// EVM contract information.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Contract {
-    /// Contracts data
     pub input: Bytes,
-    /// Bytecode contains contract code, size of original code, analysis with gas block and jump table.
-    /// Note that current code is extended with push padding and STOP at end.
     pub bytecode: Bytecode,
-    /// Bytecode hash for legacy. For EOF this would be None.
     pub hash: Option<B256>,
-    /// Target address of the account. Storage of this address is going to be modified.
     pub target_address: Address,
-    /// Caller of the EVM.
     pub caller: Address,
-    /// Value send to contract from transaction or from CALL opcodes.
     pub call_value: U256,
 }
 
 impl Contract {
-    /// Instantiates a new contract by analyzing the given bytecode.
     #[inline]
     pub fn new(
         input: Bytes,
@@ -34,11 +25,9 @@ impl Contract {
         caller: Address,
         call_value: U256,
     ) -> Self {
-        let bytecode = to_analysed(bytecode);
-
         Self {
             input,
-            bytecode,
+            bytecode: to_analysed(bytecode),
             hash,
             target_address,
             caller,
@@ -46,7 +35,6 @@ impl Contract {
         }
     }
 
-    /// Creates a new contract from the given [`Env`].
     #[inline]
     pub fn new_env(env: &Env, bytecode: Bytecode, hash: Option<B256>) -> Self {
         let contract_address = match env.tx.transact_to {
@@ -63,7 +51,6 @@ impl Contract {
         )
     }
 
-    /// Creates a new contract from the given inputs.
     #[inline]
     pub fn new_with_context(
         input: Bytes,
@@ -81,12 +68,10 @@ impl Contract {
         )
     }
 
-    /// Returns whether the given position is a valid jump destination.
     #[inline]
     pub fn is_valid_jump(&self, pos: usize) -> bool {
         self.bytecode
             .legacy_jump_table()
-            .map(|i| i.is_valid(pos))
-            .unwrap_or(false)
+            .map_or(false, |table| table.is_valid(pos))
     }
 }
