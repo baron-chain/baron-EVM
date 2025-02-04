@@ -7,7 +7,7 @@ use bcevm::{
     DatabaseCommit, DatabaseRef, Evm,
 };
 use std::error::Error;
-
+//BCMOD
 /// A trait that ensures the database reference has a Debug error type.
 /// This is useful for error handling and logging.
 pub trait DatabaseRefDebugError: DatabaseRef<Error = Self::DBError> {
