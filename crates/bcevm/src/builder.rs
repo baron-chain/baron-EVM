@@ -1,4 +1,4 @@
-//BCMOD [ERR#0x0c04] [ERR#0x0c04] [ERR#0x0c04]
+//BCMOD [ERR#0x0c04] [ERR#0x0c04] [ERR#0x0c04] [ERR#0x0c04]
 use crate::{
     db::{Database, DatabaseRef, EmptyDB, WrapDatabaseRef},
     handler::register,
