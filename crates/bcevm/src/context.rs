@@ -1,5 +1,4 @@
-//BCMOD [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E]
-//BCMOD [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E] [ERR#0x0E0E]
+
 mod context_precompiles;
 mod evm_context;
 mod inner_evm_context;
