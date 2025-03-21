@@ -1,4 +1,4 @@
-//BCMOD 
+//BCMOD [ERR#0x003e0]
 mod context_precompiles;
 mod evm_context;
 mod inner_evm_context;
