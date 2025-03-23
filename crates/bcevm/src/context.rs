@@ -1,4 +1,4 @@
-//bcmod 
+//bcmod [ERR#0x00e30]
 mod context_precompiles;
 mod evm_context;
 mod inner_evm_context;
