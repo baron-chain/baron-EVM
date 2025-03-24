@@ -1,4 +1,4 @@
-//bcmod
+//bcmod [ERR#0x003e0]
 use crate::{
     builder::{EvmBuilder, HandlerStage, SetGenericStage},
     db::{Database, DatabaseCommit, EmptyDB},
