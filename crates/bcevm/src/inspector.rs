@@ -14,7 +14,7 @@ mod handler_register;
 mod noop;
 
 // Exports.
-//BCMOD
+
 pub use handler_register::{inspector_handle_register, inspector_instruction, GetInspector};
 use bcevm_interpreter::{CallOutcome, CreateOutcome};
 
