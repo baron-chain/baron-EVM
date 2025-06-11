@@ -2,7 +2,7 @@
 mod handle_types;
 pub mod mainnet;
 pub mod register;
-//BCMOD
+
 // Exports.
 pub use handle_types::*;
 
