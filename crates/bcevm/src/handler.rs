@@ -1,4 +1,3 @@
-//BCMOD
 // Modules.
 mod handle_types;
 pub mod mainnet;
