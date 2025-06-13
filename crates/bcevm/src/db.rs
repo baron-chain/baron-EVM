@@ -1,4 +1,3 @@
-//BCMOD
 #[cfg(feature = "alloydb")]
 pub mod alloydb;
 pub mod emptydb;
