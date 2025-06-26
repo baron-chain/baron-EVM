@@ -1,4 +1,4 @@
-
+//BCMOD
 use crate::{
     interpreter::{CallInputs, CreateInputs, EOFCreateInput, EOFCreateOutcome, Interpreter},
     primitives::{db::Database, Address, Log, U256},
