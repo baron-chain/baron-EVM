@@ -1,4 +1,3 @@
-//BCMOD
 #[doc(hidden)]
 
 //add #1211
