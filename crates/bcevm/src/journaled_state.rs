@@ -1,4 +1,3 @@
-//BCMOD
 use crate::interpreter::{InstructionResult, SelfDestructResult};
 use crate::primitives::{
     db::Database, hash_map::Entry, Account, Address, Bytecode, EVMError, HashMap, HashSet, Log,
