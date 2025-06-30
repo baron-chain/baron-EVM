@@ -1,4 +1,3 @@
-//BCMOD
 use crate::{
     interpreter::Interpreter,
     primitives::{Address, Output},
